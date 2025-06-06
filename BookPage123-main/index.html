@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>繪本閱讀</title>
+
+  <style>
+    /* ---------- 全局基礎樣式 ---------- */
+    body {
+      margin: 0;
+      background-color: #363636;
+      font-family: Arial, sans-serif;
+      color: white;
+    }
+
+    /* ---------- 讓 #app-content 整體置中 ---------- */
+    #app-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;   /* 水平置中 */
+      min-height: 100vh;
+      box-sizing: border-box;
+      padding: 20px 0;
+    }
+
+    /* ---------- 進度條 + 頁碼 (置中) ---------- */
+    .progress-bar {
+      width: 80%;
+      max-width: 1200px;
+      margin: 0 auto 10px;   /* 水平置中，下方留 10px */
+      text-align: center;
+      position: relative;
+    }
+    .progress-bar progress {
+      width: 100%;
+      height: 10px;
+    }
+    #page-number-display {
+      font-size: 18px;
+      margin-top: 5px;
+      color: #ffffff;
+    }
+
+    /* ---------- 播放朗讀按鈕 ---------- */
+    #audio-controls {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    #play-audio {
+      padding: 8px 16px;
+      font-size: 16px;
+      background-color: #3a7ce6;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    #play-audio:hover {
+      background-color: #2958a3;
+    }
+    #page-audio {
+      display: none;
+    }
+
+    /* ---------- 翻頁器容器：以 margin:0 auto 水平置中 ---------- */
+    #flipbook-container {
+      position: relative;
+      display: block;       
+      margin: 0 auto;       /* 讓翻頁器水平置中 */
+    }
+
+    #flipbook {
+      background-color: #ffffff;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    /* ---------- 左右翻頁按鈕 (固定在容器兩側) ---------- */
+    .arrow-button {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      padding: 10px;
+      font-size: 24px;
+      background-color: #3a7ce6;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      z-index: 1000;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .arrow-button:hover {
+      background-color: #2958a3;
+    }
+    #pdf-prev {
+      left: 10px;   
+    }
+    #pdf-next {
+      right: 10px;  
+    }
+    @media (max-width: 768px) {
+      .arrow-button {
+        width: 40px;
+        height: 40px;
+        padding: 5px;
+        font-size: 18px;
+      }
+    }
+
+    /* ---------- 單張頁面 (.page) ---------- */
+    .page {
+      position: relative;
+      z-index: 1;
+    }
+    /* 第 1 頁時隱藏左半頁，讓右頁貼左 */
+    #flipbook.first-page .page-left {
+      display: none !important;
+    }
+    #flipbook.first-page .page-right {
+      margin-left: 0 !important;
+      display: block !important;
+    }
+
+    /* ---------- Loading 旋轉動畫 ---------- */
+    #loading-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.8);
+      z-index: 1000;
+    }
+    .spinner {
+      width: 80px;
+      height: 80px;
+      border: 5px solid rgba(0, 0, 0, 0.2);
+      border-top: 5px solid #000;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0%   { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* ---------- DIVE & Embed 全螢幕容器 ---------- */
+    #dive-container, #embed-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    /* 把寬度從原本 90% 改成 80%，並把 max-width 從 1000px 改為 800px */
+    #dive-frame, #embed-frame {
+      width: 80%;
+      max-width: 800px;
+      max-height: 80%;
+      border: 2px solid #333;
+      aspect-ratio: 4/3;
+      background: white;
+    }
+    #dive-buttons, #embed-buttons {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10000;
+      display: flex;
+      gap: 10px;
+    }
+    #dive-buttons button, #embed-buttons button {
+      margin: 5px;
+      padding: 8px 12px;
+      border-radius: 5px;
+      background-color: #3a7ce6;
+      color: white;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+
+  <!-- 引入外部函式庫：jQuery / turn.js / PDF.js / DIVE Linker -->
+  <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+  <script src="js/turn.js"></script>
+  <script src="pdf.js"></script>
+  <script src="pdf.worker.js"></script>
+  <script src="https://dive.nutn.edu.tw/Experiment/js/dive.linker.js"></script>
+  <script src="js/dive.js"></script>
+  <!-- Font Awesome (用來顯示箭頭 icon) -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+</head>
+
+<body>
+  <!-- Loading 旋轉動畫 -->
+  <div id="loading-screen">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- 主要 App 內容 (水平置中) -->
+  <div id="app-content" style="display: none;">
+
+    <!-- 頁碼 + 進度條 -->
+    <div class="progress-bar">
+      <progress id="reading-progress" value="0" max="100"></progress>
+      <p id="page-number-display">
+        第 <span id="pdf-current-page">1</span> 頁，共 <span id="pdf-total-pages"></span> 頁
+      </p>
+    </div>
+
+    <!-- 播放朗讀按鈕 -->
+    <div id="audio-controls">
+      <button id="play-audio">播放當頁朗讀</button>
+      <audio id="page-audio"></audio>
+    </div>
+
+    <!-- 翻頁器容器：display:block + margin:0 auto -->
+    <div id="flipbook-container">
+      <div id="flipbook"></div>
+
+      <!-- 左右翻頁按鈕 -->
+      <button id="pdf-prev" class="arrow-button">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <button id="pdf-next" class="arrow-button">
+        <i class="fas fa-arrow-right"></i>
+      </button>
+    </div>
+
+    <!-- DIVE 全螢幕容器 -->
+    <div id="dive-container">
+      <iframe id="dive-frame" name="dive"></iframe>
+      <div id="dive-buttons">
+        <button onclick="closeDive()">關閉遊戲</button>
+        <button onclick="restartDive()">重新整理</button>
+      </div>
+    </div>
+
+    <!-- Embed 全螢幕容器 -->
+    <div id="embed-container">
+      <iframe id="embed-frame"></iframe>
+      <div id="embed-buttons">
+        <button onclick="closeEmbed()">關閉</button>
+        <button onclick="reloadEmbed()">重新整理</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== 常數 & 全域變數 ==========
+    const BOOK_FILENAME = 'book.pdf'; // 只載入這本 PDF
+    let __PDF_DOC, __CURRENT_PAGE = 1, __TOTAL_PAGES = 0, __PAGE_WIDTH = 0, __PAGE_HEIGHT = 0;
+    let __BATCH_SIZE = 2, __CURRENT_BATCH = 1; 
+    // 把批次大小從 3 改成 2，讓瀏覽器一次只渲染兩頁，減輕峰值負載
+    let linkRegions = [];
+
+    // 在第 29 頁與第 55 頁顯示 QR code，並對應到 DIVE 遊戲 33325、33326
+    const diveLinkPages = {
+      '29': {
+        left:  1500 + 'px',  
+        top:   800 + 'px',  
+        width:  '200px',
+        height: '200px',
+        projectId: 33325,
+        imagePath: 'qrcodes/qr29.png'
+      },
+      '55': {
+        left:  1500 + 'px',  
+        top:   700 + 'px',  
+        width:  '200px',
+        height: '200px',
+        projectId: 33326,
+        imagePath: 'qrcodes/qr55.png'
+      }
+    };
+
+
+    // 目前不打算在其他頁嵌入網頁，故先留空
+    const embedLinkPages = {};
+
+    // ========== 渲染單一 PDF 頁面到 Canvas ==========
+    function renderPage(page, canvas, scale = 1.5) {
+      // 將 scale 從原本 2 降到 1.5，降低渲染負載。
+      if (!canvas) return Promise.reject('找不到對應的 canvas 元素');
+      ResizeflipCanvasSize();
+      updateProgressBar();
+
+      let viewport = page.getViewport(scale);
+      let ctx = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      return page.render({ canvasContext: ctx, viewport: viewport }).promise;
+    }
+
+    // ========== 批次渲染多頁 ==========
+    function renderBatch(startPage, endPage) {
+      ResizeflipCanvasSize();
+      let chain = Promise.resolve();
+      for (let i = startPage; i <= endPage; i++) {
+        chain = chain.then(() => {
+          return __PDF_DOC.getPage(i).then(page => {
+            let canvas = document.getElementById('canvas' + i);
+            return new Promise(resolve => {
+              // 如果 canvas 尚未出現，就用 MutationObserver 等待
+              if (canvas) return resolve(canvas);
+              const obs = new MutationObserver((mutations, observer) => {
+                let found = document.getElementById('canvas' + i);
+                if (found) {
+                  observer.disconnect();
+                  resolve(found);
+                }
+              });
+              obs.observe(document.getElementById('flipbook'), { childList: true, subtree: true });
+            }).then(cnv => renderPage(page, cnv))
+              .catch(err => console.error('渲染第 ' + i + ' 頁出錯：', err));
+          });
+        });
+      }
+      return chain;
+    }
+
+    // ========== 依批次輪流渲染所有頁 ==========
+    function renderPagesInBatches() {
+      let total = Math.ceil(__TOTAL_PAGES / __BATCH_SIZE);
+      function nextBatch() {
+        if (__CURRENT_BATCH > total) return;
+        let start = (__CURRENT_BATCH - 1) * __BATCH_SIZE + 1;
+        let end = Math.min(__CURRENT_BATCH * __BATCH_SIZE, __TOTAL_PAGES);
+        renderBatch(start, end).then(() => {
+          __CURRENT_BATCH++;
+          setTimeout(nextBatch, 1000);
+        });
+      }
+      nextBatch();
+    }
+
+    // ========== 顯示 PDF ==========
+    function showPDF() {
+      let url = `./pdfs/${BOOK_FILENAME}`;
+      PDFJS.getDocument({ url }).then(pdfDoc => {
+        __PDF_DOC = pdfDoc;
+        __TOTAL_PAGES = pdfDoc.numPages;
+        document.getElementById('pdf-total-pages').textContent = __TOTAL_PAGES;
+
+        // 先讀第 1 頁取得寬高
+        return pdfDoc.getPage(1).then(page => {
+          let vp = page.getViewport(1.33);
+          __PAGE_WIDTH = vp.width;
+          __PAGE_HEIGHT = vp.height;
+
+          // 清空再插入所有 <div class="page"><canvas></canvas></div>
+          $('#flipbook').empty();
+          for (let i = 1; i <= __TOTAL_PAGES; i++) {
+            $('#flipbook').append(
+              `<div class="page" data-page="${i}">
+                  <canvas id="canvas${i}" width="${__PAGE_WIDTH}px"></canvas>
+               </div>`
+            );
+          }
+
+          // 呼叫 turn.js，一定要在所有 .page 都插入後
+          $('#flipbook').turn({
+            width: __PAGE_WIDTH * 2,
+            height: __PAGE_HEIGHT,
+            autoCenter: true
+          });
+
+          bindFlipbookEvents();
+          ResizeflipCanvasSize();
+          renderPagesInBatches();
+        });
+      }).catch(err => {
+        console.error('載入 PDF 時出錯：', err);
+        alert('PDF 載入失敗：' + err.message);
+      });
+    }
+
+    // ========== 綁定翻頁事件 ==========
+    function bindFlipbookEvents() {
+      $('#flipbook').bind('turning', (event, page, view) => {
+        __CURRENT_PAGE = page;
+        document.getElementById('pdf-current-page').textContent = page;
+        updateProgressBar();
+
+        // 第 1 頁時隱藏左半頁，讓右半頁靠左顯示
+        if (page === 1) {
+          $('#flipbook').addClass('first-page');
+        } else {
+          $('#flipbook').removeClass('first-page');
+        }
+        ResizeflipCanvasSize();
+
+        // 翻頁後清除舊的連結，重新插入 DIVE/Embed
+        clearLinkRegions();
+        handlePageLinks(view, diveLinkPages);
+        handleEmbedLinks(view, embedLinkPages);
+      });
+    }
+
+    // ========== 清除舊的 DIVE/Embed 連結區 ==========
+    function clearLinkRegions() {
+      linkRegions.forEach(item => item.element.remove());
+      linkRegions = [];
+    }
+
+    // ========== 插入 DIVE 連結 ==========
+    function handlePageLinks(view, pagesConfig) {
+      view.forEach(p => {
+        let key = p.toString();
+        if (pagesConfig[key]) addDiveLinkToPage(p, pagesConfig[key]);
+      });
+    }
+
+    function addDiveLinkToPage(pageNumber, cfg) {
+      let linkEl = document.createElement(cfg.imagePath ? 'img' : 'div');
+      if (cfg.imagePath) linkEl.src = cfg.imagePath;
+      linkEl.style.position = 'absolute';
+      linkEl.style.left = cfg.left;
+      linkEl.style.top = cfg.top;
+      linkEl.style.width = cfg.width;
+      linkEl.style.height = cfg.height;
+      linkEl.style.zIndex = '1000';
+      linkEl.style.cursor = 'pointer';
+
+      linkEl.addEventListener('click', e => {
+        e.stopPropagation();
+        try {
+          let diveFrame = document.getElementById('dive-frame');
+          const diveLinker = new DiveLinker("dive");
+          diveLinker.setProject(cfg.projectId);
+          diveLinker.start();
+          document.getElementById('dive-container').style.display = 'flex';
+
+          // 如果要持續監聽 DIVE IO，可自行加上 interval
+          /*
+          let intervalId = setInterval(() => {
+            let ioList = diveLinker.getOutputList();
+            // TODO: 根據 ioList 更新狀態
+          }, 3000);
+          document.querySelector('#dive-buttons button[onclick="closeDive()"]')
+                  .addEventListener('click', () => clearInterval(intervalId));
+          */
+        } catch (err) {
+          console.error('DIVE 初始化失敗：', err);
+        }
+      });
+
+      let pageEl = $(`#flipbook .page[data-page="${pageNumber}"]`);
+      if (pageEl.length) {
+        pageEl.append(linkEl);
+        linkRegions.push({ pageNumber, element: linkEl, config: cfg });
+      }
+    }
+
+    // ========== 插入 Embed 連結 ==========
+    function handleEmbedLinks(view, pagesConfig) {
+      view.forEach(p => {
+        let key = p.toString();
+        if (pagesConfig[key]) addEmbedLinkToPage(p, pagesConfig[key]);
+      });
+    }
+
+    function addEmbedLinkToPage(pageNumber, cfg) {
+      let linkEl = document.createElement('div');
+      linkEl.classList.add('link-region');
+      linkEl.style.position = 'absolute';
+      linkEl.style.left = cfg.left;
+      linkEl.style.top = cfg.top;
+      linkEl.style.width = cfg.width;
+      linkEl.style.height = cfg.height;
+      linkEl.style.zIndex = '1000';
+      linkEl.style.backgroundColor = 'rgba(0, 0, 255, 0)';
+
+      linkEl.addEventListener('click', e => {
+        e.stopPropagation();
+        let embedFrame = document.getElementById('embed-frame');
+        if (embedFrame) {
+          embedFrame.src = cfg.url;
+          document.getElementById('embed-container').style.display = 'flex';
+        } else {
+          console.error('找不到 embed-frame');
+        }
+      });
+
+      let pageEl = $(`#flipbook .page[data-page="${pageNumber}"]`);
+      if (pageEl.length) {
+        pageEl.append(linkEl);
+        linkRegions.push({ pageNumber, element: linkEl, config: cfg });
+      }
+    }
+
+    // ========== 更新進度條顯示 ==========
+    function updateProgressBar() {
+      let current = __CURRENT_PAGE;
+      if ($('#flipbook').turn('display') === 'single' && current > 1) {
+        current = current - 1;
+      }
+      let val = (current / __TOTAL_PAGES) * 100;
+      document.getElementById('reading-progress').value = val;
+      document.getElementById('pdf-current-page').textContent = __CURRENT_PAGE;
+    }
+
+    // ========== 調整翻頁器 & Canvas 大小 & 箭頭按鈕 ==========
+    function ResizeflipCanvasSize() {
+      if (!__PAGE_WIDTH || !__PAGE_HEIGHT) return;
+      let ratio = window.innerWidth / window.innerHeight;
+      let scaleFactor;
+
+      // 限制「占視窗 80%」的縮放邏輯
+      if (ratio < 1) {
+        // 窄屏：單頁模式，單頁最大寬度 ≦ 視窗 80%
+        scaleFactor = ($(window).width() * 0.8) / __PAGE_WIDTH;
+        $('#flipbook').turn('display', 'single');
+        $('#flipbook').turn('size', __PAGE_WIDTH * scaleFactor, __PAGE_HEIGHT * scaleFactor);
+      } else {
+        // 寬屏：雙頁模式，雙頁總寬度 ≦ 視窗 80%
+        scaleFactor = ($(window).width() * 0.8) / (__PAGE_WIDTH * 2);
+        $('#flipbook').turn('display', 'double');
+        $('#flipbook').turn('size', __PAGE_WIDTH * 2 * scaleFactor, __PAGE_HEIGHT * scaleFactor);
+      }
+
+      // 統一調整所有 <canvas> 的 CSS 尺寸
+      $('#flipbook canvas').each(function() {
+        $(this).css({
+          width: __PAGE_WIDTH * scaleFactor + 'px',
+          height: __PAGE_HEIGHT * scaleFactor + 'px'
+        });
+      });
+
+      // 讓翻頁器 (#flipbook) 在其父容器中保持水平置中
+      $('#flipbook').css('margin', '20px auto');
+
+      // 調整左右箭頭按鈕到翻頁器兩側
+      adjustArrowButtons();
+    }
+
+    // ========== 將左右箭頭按鈕定位到翻頁器兩側 ==========
+    function adjustArrowButtons() {
+      let flipEl = $('#flipbook');
+      let offset = flipEl.offset();
+      let fbW = flipEl.outerWidth();
+      let fbH = flipEl.outerHeight();
+      let btnOff = 20; 
+
+      if (!offset) return;
+
+      $('#pdf-prev').css({
+        top: offset.top + fbH / 2 - $('#pdf-prev').outerHeight() / 2 + 'px',
+        left: offset.left - $('#pdf-prev').outerWidth() - btnOff + 'px'
+      });
+      $('#pdf-next').css({
+        top: offset.top + fbH / 2 - $('#pdf-next').outerHeight() / 2 + 'px',
+        left: offset.left + fbW + btnOff + 'px'
+      });
+    }
+
+    // ========== 關閉 / 重新整理 DIVE ==========
+    function closeDive() {
+      document.getElementById('dive-container').style.display = 'none';
+      document.getElementById('dive-frame').src = '';
+    }
+    function restartDive() {
+      let f = document.getElementById('dive-frame');
+      f.src = f.src;
+    }
+
+    // ========== 關閉 / 重新整理 Embed ==========
+    function closeEmbed() {
+      document.getElementById('embed-container').style.display = 'none';
+      document.getElementById('embed-frame').src = '';
+    }
+    function reloadEmbed() {
+      let f = document.getElementById('embed-frame');
+      f.src = f.src;
+    }
+
+    // ========== 綁定左右翻頁按鈕 ==========
+    $('#pdf-prev').on('click', () => { $('#flipbook').turn('previous'); });
+    $('#pdf-next').on('click', () => { $('#flipbook').turn('next'); });
+
+    // ========== 播放朗讀音訊 (.m4a) ==========
+    function setupAudioButton() {
+      document.getElementById('play-audio').addEventListener('click', () => {
+        let pageNum = __CURRENT_PAGE;
+        let audioFile;
+        if (pageNum === 1) {
+          audioFile = 'page1.m4a';
+        } else {
+          let groupStart = (pageNum % 2 === 0) ? pageNum : (pageNum - 1);
+          audioFile = `page${groupStart}.m4a`;
+        }
+        let audioEl = document.getElementById('page-audio');
+        audioEl.src = `audio/${audioFile}`;
+        audioEl.play().catch(err => console.warn('播放失敗：', err));
+      });
+    }
+
+    // ========== 初始化 & Loading 邏輯 ==========
+    function showLoading() {
+      document.getElementById('loading-screen').style.display = 'flex';
+      document.getElementById('app-content').style.display = 'none';
+    }
+    function hideLoading() {
+      document.getElementById('loading-screen').style.display = 'none';
+      document.getElementById('app-content').style.display = 'block';
+    }
+    function loadData() {
+      return new Promise(resolve => {
+        setTimeout(() => {
+          console.log('模擬資料載入完成');
+          resolve();
+        }, 3000);
+      });
+    }
+    function initializeApp() {
+      showLoading();
+      loadData().then(() => {
+        hideLoading();
+        showPDF();
+      });
+    }
+
+    // ========== DOM Ready & Window Load ==========
+    $(document).ready(() => {
+      setupAudioButton();
+
+      // 瀏覽器大小改變時，一併更新翻頁器與進度條
+      $(window).resize(() => {
+        ResizeflipCanvasSize();
+        updateProgressBar();
+      });
+
+      // turn.js 完成一翻頁後，也更新進度條 & 縮放 & 連結位置
+      $('#flipbook').bind('turned', () => {
+        updateProgressBar();
+        ResizeflipCanvasSize();
+        adjustLinkRegions();
+      });
+    });
+
+    window.addEventListener('load', initializeApp);
+
+    // ========== 調整所有 DIVE/Embed 連結區域位置 ==========
+    function adjustLinkRegions() {
+      let ratio = window.innerWidth / window.innerHeight;
+      let scaleF = (ratio < 1)
+        ? ($(window).width() * 0.8 / __PAGE_WIDTH)         // 單頁模式縮放
+        : ($(window).width() * 0.8 / (__PAGE_WIDTH * 2));  // 雙頁模式縮放
+
+      linkRegions.forEach(item => {
+        let cfg = item.config;
+        let el = $(item.element);
+        if (cfg.left && cfg.top && cfg.width && cfg.height) {
+          el.css({
+            left: parseFloat(cfg.left) * scaleF + 'px',
+            top: parseFloat(cfg.top) * scaleF + 'px',
+            width: parseFloat(cfg.width) * scaleF + 'px',
+            height: parseFloat(cfg.height) * scaleF + 'px'
+          });
+        }
+      });
+    }
+  </script>
+</body>
+</html>
