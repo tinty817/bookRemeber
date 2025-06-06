@@ -428,46 +428,61 @@
       });
     }
 
-    function addDiveLinkToPage(pageNumber, cfg) {
-      let linkEl = document.createElement(cfg.imagePath ? 'img' : 'div');
-      if (cfg.imagePath) linkEl.src = cfg.imagePath;
-      linkEl.style.position = 'absolute';
-      linkEl.style.left = cfg.left;
-      linkEl.style.top = cfg.top;
-      linkEl.style.width = cfg.width;
-      linkEl.style.height = cfg.height;
-      linkEl.style.zIndex = '1000';
-      linkEl.style.cursor = 'pointer';
+function addDiveLinkToPage(pageNumber, cfg) {
+  // 原本宣告 linkEl 的那段…
+  let linkEl = document.createElement(cfg.imagePath ? 'img' : 'div');
+  if (cfg.imagePath) linkEl.src = cfg.imagePath;
+  linkEl.style.position = 'absolute';
+  linkEl.style.left   = cfg.left;
+  linkEl.style.top    = cfg.top;
+  linkEl.style.width  = cfg.width;
+  linkEl.style.height = cfg.height;
+  linkEl.style.zIndex = '1000';
+  linkEl.style.cursor = 'pointer';
 
-      linkEl.addEventListener('click', e => {
-        e.stopPropagation();
-        try {
-          let diveFrame = document.getElementById('dive-frame');
-          const diveLinker = new DiveLinker("dive");
-          diveLinker.setProject(cfg.projectId);
-          diveLinker.start();
-          document.getElementById('dive-container').style.display = 'flex';
-
-          // 如果要持續監聽 DIVE IO，可自行加上 interval
-          /*
-          let intervalId = setInterval(() => {
-            let ioList = diveLinker.getOutputList();
-            // TODO: 根據 ioList 更新狀態
-          }, 3000);
-          document.querySelector('#dive-buttons button[onclick="closeDive()"]')
-                  .addEventListener('click', () => clearInterval(intervalId));
-          */
-        } catch (err) {
-          console.error('DIVE 初始化失敗：', err);
-        }
-      });
-
-      let pageEl = $(`#flipbook .page[data-page="${pageNumber}"]`);
-      if (pageEl.length) {
-        pageEl.append(linkEl);
-        linkRegions.push({ pageNumber, element: linkEl, config: cfg });
-      }
+  // **新增：攔截 touchstart、touchend，避免 Turn.js 翻頁**
+  linkEl.addEventListener('touchstart', function(e) {
+    e.stopPropagation();
+    // e.preventDefault(); // 如果有需要也可以加上
+  });
+  linkEl.addEventListener('touchend', function(e) {
+    e.stopPropagation();
+    // e.preventDefault();
+    // 之後才執行點擊邏輯…（可跟 click 共用同一段）
+    try {
+      let diveFrame = document.getElementById('dive-frame');
+      const diveLinker = new DiveLinker("dive");
+      diveLinker.setProject(cfg.projectId);
+      diveLinker.start();
+      document.getElementById('dive-container').style.display = 'flex';
+    } catch (err) {
+      console.error('DIVE 初始化失敗：', err);
     }
+  });
+
+  // 原本的 click 監聽也保留以防桌機使用者點擊：
+  linkEl.addEventListener('click', function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    try {
+      let diveFrame = document.getElementById('dive-frame');
+      const diveLinker = new DiveLinker("dive");
+      diveLinker.setProject(cfg.projectId);
+      diveLinker.start();
+      document.getElementById('dive-container').style.display = 'flex';
+    } catch (err) {
+      console.error('DIVE 初始化失敗：', err);
+    }
+  });
+
+  // 把 linkEl append 到該頁面
+  let pageEl = $(`#flipbook .page[data-page="${pageNumber}"]`);
+  if (pageEl.length) {
+    pageEl.append(linkEl);
+    linkRegions.push({ pageNumber, element: linkEl, config: cfg });
+  }
+}
+
 
     // ========== 插入 Embed 連結 ==========
     function handleEmbedLinks(view, pagesConfig) {
