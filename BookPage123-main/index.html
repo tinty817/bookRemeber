@@ -540,13 +540,13 @@ function addDiveLinkToPage(pageNumber, cfg) {
 
       // 限制「占視窗 80%」的縮放邏輯
       if (ratio < 1) {
-        // 窄屏：單頁模式，單頁最大寬度 ≦ 視窗 80%
-        scaleFactor = ($(window).width() * 0.9) / __PAGE_WIDTH;
+    
+        scaleFactor = ($(window).width() * 0.95) / __PAGE_WIDTH;
         $('#flipbook').turn('display', 'single');
         $('#flipbook').turn('size', __PAGE_WIDTH * scaleFactor, __PAGE_HEIGHT * scaleFactor);
       } else {
-        // 寬屏：雙頁模式，雙頁總寬度 ≦ 視窗 80%
-        scaleFactor = ($(window).width() * 0.9) / (__PAGE_WIDTH * 2);
+
+        scaleFactor = ($(window).width() * 0.95) / (__PAGE_WIDTH * 2);
         $('#flipbook').turn('display', 'double');
         $('#flipbook').turn('size', __PAGE_WIDTH * 2 * scaleFactor, __PAGE_HEIGHT * scaleFactor);
       }
