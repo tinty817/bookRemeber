@@ -2,9 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" 
-    content="width=device-width, initial-scale=1.0" />
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>繪本閱讀</title>
 
   <style>
@@ -195,6 +193,52 @@
       border: none;
       cursor: pointer;
     }
+
+        #notice-overlay {
+      position: fixed; top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 99999;
+    }
+    #notice-box {
+      background: white;
+      color: black;
+      padding: 30px;
+      width: 90%;
+      max-width: 600px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      overflow-y: auto;
+      max-height: 80vh;
+    }
+    #notice-box h2, #notice-box h3 { margin-top: 15px; }
+    #notice-box button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background: #3a7ce6;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    /* ---------- 右上角「閱讀須知」按鈕 ---------- */
+    #notice-button {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      padding: 8px 16px;
+      background: #3a7ce6;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #notice-button:hover { background: #2958a3; }
+
   </style>
 
   <!-- 引入外部函式庫：jQuery / turn.js / PDF.js / DIVE Linker -->
@@ -210,10 +254,50 @@
 </head>
 
 <body>
-  <!-- Loading 旋轉動畫 -->
-  <div id="loading-screen">
-    <div class="spinner"></div>
+  <!-- 注意事項彈窗 -->
+  <div id="notice-overlay">
+    <div id="notice-box">
+      <h2>📖 閱讀前須知</h2>
+      <p>親愛的讀者您好，<br>
+      「記得你，忘記我」有故事也有互動小關卡，請您慢慢看，享受其中。</p>
+
+      <h3>🧭 閱讀方式</h3>
+      <ul>
+        <li>繪本請從左看到右、從上看到下。</li>
+        <li>每一頁我們一起慢慢滑、慢慢看，沈浸其中！</li>
+      </ul>
+
+      <h3>📱 操作方式</h3>
+      <ul>
+        <li>看到 QR CODE 時，請點一下（或請家人幫忙點），會跳出一個小遊戲或任務。</li>
+        <li>任務做完後，請回到繪本，繼續看下一頁。</li>
+      </ul>
+
+      <h3>🔊 小叮嚀</h3>
+      <ul>
+        <li>每頁的語音圖示，建議您點一下，會有溫柔的聲音念給您聽。</li>
+        <li>如果您使用平板或電腦，畫面會更清楚、比較好操作喔！</li>
+      </ul>
+
+      <p>💛 活絡一下頭殼，免予生銹<br>
+      💛 有啥心事，咱講出來就較鬆快<br>
+      💛 想想家己人，彼個心肝寶貝咧</p>
+
+      <p>每一關，都像是在修補一段回憶，<br>
+      也許模糊了，但愛不會忘。</p>
+
+      <p>✧ 願您看得開心，也想起心中最重要的人 ✧<br>
+      製作團隊敬上<br>
+      《記得你，忘記我》</p>
+
+      <button onclick="closeNotice()">關閉</button>
+    </div>
   </div>
+
+  <button id="notice-button">閱讀須知</button>
+
+  <!-- Loading 畫面 -->
+  <div id="loading-screen"><div class="spinner"></div></div>
 
   <!-- 主要 App 內容 (水平置中) -->
   <div id="app-content" style="display: none;">
@@ -265,6 +349,11 @@
   </div>
 
   <script>
+    function openNotice(){ $('#notice-overlay').css('display','flex'); }
+    function closeNotice(){ $('#notice-overlay').hide(); }
+    window.addEventListener('load', openNotice);
+    $('#notice-button').click(openNotice);
+
     // ========== 常數 & 全域變數 ==========
     const BOOK_FILENAME = 'book.pdf'; // 只載入這本 PDF
     let __PDF_DOC, __CURRENT_PAGE = 1, __TOTAL_PAGES = 0, __PAGE_WIDTH = 0, __PAGE_HEIGHT = 0;
