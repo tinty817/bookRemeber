@@ -364,6 +364,14 @@
 
     // 在第 29 頁與第 55 頁顯示 QR code，並對應到 DIVE 遊戲 33325、33326
     const diveLinkPages = {
+      '13': {
+        left:  1850 + 'px',  
+        top:   500 + 'px',  
+        width:  '250px',
+        height: '250px',
+        projectId: 33338,
+        imagePath: 'qrcodes/qr13.png'
+      },
       '29': {
         left:  1500 + 'px',  
         top:   800 + 'px',  
@@ -381,8 +389,6 @@
         imagePath: 'qrcodes/qr55.png'
       }
     };
-
-
     // 目前不打算在其他頁嵌入網頁，故先留空
     const embedLinkPages = {};
 
